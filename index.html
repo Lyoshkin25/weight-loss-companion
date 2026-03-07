@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NutriScan">
+<title>NutriScan — Fat Loss Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.20.0/index.min.js"></script>
+<style>
+  :root {
+    --navy:   #0f1f3d;
+    --blue:   #1a4fa0;
+    --cyan:   #00c8e0;
+    --green:  #00e87a;
+    --orange: #ff6b35;
+    --red:    #ff3b5c;
+    --bg:     #080f1e;
+    --card:   #0e1c35;
+    --card2:  #132240;
+    --text:   #e8f0ff;
+    --muted:  #6a85b0;
+    --border: rgba(0,200,224,0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,200,224,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,224,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 0 0 100px; }
+
+  /* ── Header ── */
+  header {
+    padding: 20px 20px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(8,15,30,0.98) 0%, transparent 100%);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--cyan), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .logo span {
+    background: linear-gradient(135deg, var(--orange), var(--red));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .date-badge {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* ── Daily Goals Strip ── */
+  .goals-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    margin: 0;
+  }
+
+  .goal-item {
+    background: var(--card);
+    padding: 12px 14px;
+    text-align: center;
+  }
+
+  .goal-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .goal-value { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 1px; }
+  .goal-total { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .cv { color: var(--cyan); }
+  .gv { color: var(--green); }
+  .ov { color: var(--orange); }
+
+  .progress-bar-wrap { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .progress-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .pb-cyan  { background: var(--cyan); }
+  .pb-green { background: var(--green); }
+  .pb-orange { background: var(--orange); }
+
+  /* ── Section title ── */
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    padding: 20px 20px 8px;
+    text-transform: uppercase;
+  }
+
+  /* ── Scan Button ── */
+  .scan-zone {
+    margin: 8px 20px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+    background: var(--card);
+  }
+
+  #camera-container {
+    display: none;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    background: #000;
+    overflow: hidden;
+  }
+
+  #camera-container.active { display: block; }
+
+  #preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .scan-frame {
+    width: 200px;
+    height: 120px;
+    position: relative;
+  }
+
+  .scan-frame::before, .scan-frame::after,
+  .scan-frame > span::before, .scan-frame > span::after {
+    content: '';
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: var(--cyan);
+    border-style: solid;
+  }
+  .scan-frame::before  { top: 0;    left: 0;   border-width: 3px 0 0 3px; }
+  .scan-frame::after   { top: 0;    right: 0;  border-width: 3px 3px 0 0; }
+  .scan-frame > span::before { bottom: 0; left: 0;  border-width: 0 0 3px 3px; }
+  .scan-frame > span::after  { bottom: 0; right: 0; border-width: 0 3px 3px 0; }
+
+  .scan-line {
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    top: 0;
+    animation: scanline 2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  @keyframes scanline {
+    0%   { top: 10%; opacity: 1; }
+    50%  { top: 90%; opacity: 0.6; }
+    100% { top: 10%; opacity: 1; }
+  }
+
+  .scan-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .scan-btn-area {
+    padding: 20px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-scan {
+    flex: 1;
+    height: 56px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, var(--blue), #0f3a7a);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    border: 1.5px solid rgba(0,200,224,0.3);
+  }
+
+  .btn-scan:active { transform: scale(0.97); }
+  .btn-scan.scanning { background: linear-gradient(135deg, #0f3a7a, #071a3a); border-color: var(--cyan); }
+
+  .btn-manual {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--card2);
+    color: var(--muted);
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .btn-manual:active { transform: scale(0.97); }
+
+  /* ── Manual Search ── */
+  .manual-search {
+    display: none;
+    padding: 0 20px 16px;
+  }
+  .manual-search.visible { display: block; }
+
+  .search-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .search-input {
+    flex: 1;
+    height: 48px;
+    background: var(--card2);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    padding: 0 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--cyan); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .btn-search {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, var(--cyan), #0090a8);
+    color: var(--navy);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    transition: all 0.2s;
+  }
+  .btn-search:active { transform: scale(0.97); }
+
+  /* ── Status messages ── */
+  .status-msg {
+    margin: 0 20px 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-msg.visible { display: flex; }
+  .status-msg.loading { background: rgba(0,200,224,0.1); border: 1px solid rgba(0,200,224,0.3); color: var(--cyan); }
+  .status-msg.error   { background: rgba(255,59,92,0.1);  border: 1px solid rgba(255,59,92,0.3);  color: var(--red); }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,200,224,0.3);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Result Card ── */
+  .result-card {
+    margin: 0 20px 16px;
+    background: var(--card);
+    border-radius: 16px;
+    border: 1.5px solid rgba(0,232,122,0.25);
+    overflow: hidden;
+    display: none;
+    animation: slideUp 0.3s ease;
+  }
+  .result-card.visible { display: block; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-header {
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .result-name {
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.3;
+    flex: 1;
+  }
+
+  .result-brand {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  .result-serving-badge {
+    font-size: 11px;
+    background: rgba(0,200,224,0.15);
+    color: var(--cyan);
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  .macros-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .macro-box {
+    background: var(--card2);
+    padding: 12px 8px;
+    text-align: center;
+  }
+
+  .macro-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 24px;
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+  .macro-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 3px; }
+
+  /* ── Weight Input ── */
+  .weight-section {
+    padding: 16px 18px;
+    border-top: 1px solid var(--border);
+  }
+
+  .weight-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .weight-label::after {
+    content: 'WEIGHED AMOUNT';
+  }
+
+  .weight-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .weight-input-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .weight-input-wrap input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 1px;
+    padding: 10px 14px;
+    outline: none;
+    text-align: center;
+    width: 100%;
+  }
+
+  .weight-unit {
+    font-size: 14px;
+    color: var(--muted);
+    padding-right: 14px;
+    font-weight: 500;
+  }
+
+  .calculated-preview {
+    flex: 1;
+    background: rgba(0,232,122,0.08);
+    border: 1.5px solid rgba(0,232,122,0.2);
+    border-radius: 12px;
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .calc-cals { font-family: 'Bebas Neue', sans-serif; font-size: 26px; color: var(--green); letter-spacing: 1px; }
+  .calc-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* meal selector */
+  .meal-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 18px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .meal-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .meal-btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0,200,224,0.08); }
+
+  /* Add to log button */
+  .btn-add {
+    width: 100%;
+    height: 52px;
+    background: linear-gradient(135deg, var(--green), #00b85e);
+    border: none;
+    border-radius: 0;
+    color: var(--navy);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .btn-add:active { opacity: 0.9; }
+
+  /* ── Food Log ── */
+  .log-list { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+
+  .log-item {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideUp 0.25s ease;
+  }
+
+  .log-meal-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-m1 { background: var(--cyan); }
+  .dot-m2 { background: var(--orange); }
+
+  .log-info { flex: 1; min-width: 0; }
+  .log-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .log-cals {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: var(--green);
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+
+  .log-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .empty-log {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 32px 20px;
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    margin: 0 20px;
+  }
+
+  .empty-icon { font-size: 36px; margin-bottom: 10px; opacity: 0.5; }
+
+  /* ── Export ── */
+  .export-section {
+    margin: 20px 20px 0;
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    padding: 18px;
+  }
+
+  .export-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .btn-copy {
+    width: 100%;
+    height: 48px;
+    background: var(--card2);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    margin-bottom: 10px;
+  }
+  .btn-copy:active { background: rgba(0,200,224,0.1); border-color: var(--cyan); }
+
+  .copy-hint {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* search results dropdown */
+  .search-results {
+    margin-top: 8px;
+    background: var(--card2);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    display: none;
+  }
+  .search-results.visible { display: block; }
+  .search-result-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:hover, .search-result-item:active { background: rgba(0,200,224,0.08); }
+  .sri-name { font-size: 14px; font-weight: 500; }
+  .sri-brand { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sri-cals { font-size: 12px; color: var(--cyan); }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--green);
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 24px;
+    border-radius: 100px;
+    z-index: 999;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <div class="logo">Nutri<span>Scan</span></div>
+      <div class="date-badge" id="header-date"></div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Goals</div>
+      <div style="font-size:13px;color:var(--cyan);font-weight:600;">1,550 cal · 30g carbs</div>
+    </div>
+  </header>
+
+  <!-- Goals Strip -->
+  <div class="goals-strip">
+    <div class="goal-item">
+      <div class="goal-label">Calories</div>
+      <div class="goal-value cv" id="total-cals">0</div>
+      <div class="goal-total cv">/ 1550</div>
+      <div class="progress-bar-wrap"><div class="progress-bar pb-cyan" id="pb-cals" style="width:0%"></div></div>
+    </div>
+    <div class="goal-item">
+      <div class="goal-label">Carbs</div>
+      <div class="goal-value ov" id="total-carbs">0g</div>
+      <div class="goal-total ov">/ 30g</div>
+      <div class="progress-bar-wrap"><div class="progress-bar pb-orange" id="pb-carbs" style="width:0%"></div></div>
+    </div>
+    <div class="goal-item">
+      <div class="goal-label">Protein</div>
+      <div class="goal-value gv" id="total-protein">0g</div>
+      <div class="goal-total gv">/ 140g</div>
+      <div class="progress-bar-wrap"><div class="progress-bar pb-green" id="pb-protein" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Scan Section -->
+  <div class="section-title">Scan or Search</div>
+  <div class="scan-zone">
+    <div id="camera-container">
+      <video id="preview" autoplay muted playsinline></video>
+      <div class="scan-overlay">
+        <div class="scan-frame">
+          <span></span>
+          <div class="scan-line"></div>
+        </div>
+      </div>
+      <div class="scan-hint">Hold barcode within the frame</div>
+    </div>
+    <div class="scan-btn-area">
+      <button class="btn-scan" id="scan-btn" onclick="toggleCamera()">
+        <span id="scan-icon">📷</span>
+        <span id="scan-text">Scan Barcode</span>
+      </button>
+      <button class="btn-manual" onclick="toggleManual()" title="Search by name">🔍</button>
+    </div>
+  </div>
+
+  <!-- Manual Search -->
+  <div class="manual-search" id="manual-search">
+    <div class="search-row">
+      <input class="search-input" id="search-input" type="text"
+             placeholder="Search food name or barcode…"
+             onkeydown="if(event.key==='Enter') searchFood()">
+      <button class="btn-search" onclick="searchFood()">→</button>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-msg loading" id="status-loading">
+    <div class="spinner"></div>
+    <span id="status-text">Looking up nutrition data…</span>
+  </div>
+  <div class="status-msg error" id="status-error">
+    <span>⚠️</span>
+    <span id="error-text">Product not found. Try searching by name.</span>
+  </div>
+
+  <!-- Result Card -->
+  <div class="result-card" id="result-card">
+    <div class="result-header">
+      <div>
+        <div class="result-name" id="r-name">—</div>
+        <div class="result-brand" id="r-brand"></div>
+      </div>
+      <div class="result-serving-badge" id="r-serving">per 100g</div>
+    </div>
+    <div class="macros-grid">
+      <div class="macro-box"><div class="macro-val cv" id="r-cal">—</div><div class="macro-label">Cal</div></div>
+      <div class="macro-box"><div class="macro-val ov" id="r-carb">—</div><div class="macro-label">Carbs g</div></div>
+      <div class="macro-box"><div class="macro-val gv" id="r-prot">—</div><div class="macro-label">Protein g</div></div>
+      <div class="macro-box"><div class="macro-val" style="color:#a78bfa" id="r-fat">—</div><div class="macro-label">Fat g</div></div>
+    </div>
+    <div class="weight-section">
+      <div class="weight-label" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">⚖️ &nbsp;</div>
+      <div class="weight-row">
+        <div class="weight-input-wrap">
+          <input type="number" id="weight-input" value="100" min="1" max="2000"
+                 oninput="updateCalcPreview()" inputmode="decimal">
+          <span class="weight-unit">g</span>
+        </div>
+        <div class="calculated-preview">
+          <div class="calc-cals" id="calc-cals">—</div>
+          <div class="calc-label">actual cal</div>
+        </div>
+      </div>
+    </div>
+    <div class="meal-row">
+      <button class="meal-btn active" id="mb-1" onclick="selectMeal(1)">Meal 1</button>
+      <button class="meal-btn" id="mb-2" onclick="selectMeal(2)">Meal 2</button>
+      <button class="meal-btn" id="mb-snack" onclick="selectMeal('Snack')">Snack</button>
+    </div>
+    <button class="btn-add" onclick="addToLog()">
+      ＋ Add to Today's Log
+    </button>
+  </div>
+
+  <!-- Today's Log -->
+  <div class="section-title">Today's Log</div>
+  <div id="log-container">
+    <div class="empty-log" id="empty-msg">
+      <div class="empty-icon">🥗</div>
+      Scan or search a food to start logging
+    </div>
+  </div>
+  <div class="log-list" id="log-list"></div>
+
+  <!-- Export -->
+  <div class="export-section">
+    <div class="export-title">📋 Export to Spreadsheet</div>
+    <button class="btn-copy" onclick="copyToClipboard()">
+      📋 Copy Today's Log (Tab-separated)
+    </button>
+    <p class="copy-hint">
+      Copies a formatted table you can paste directly into<br>
+      your Excel tracker's Daily Log sheet.
+    </p>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+const GOALS = { cal: 1550, carb: 30, protein: 140 };
+let currentFood = null;
+let selectedMeal = 1;
+let logEntries = JSON.parse(localStorage.getItem('nutriscan-log') || '[]')
+  .filter(e => e.date === today());
+let codeReader = null;
+let scanning = false;
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const d = new Date();
+  document.getElementById('header-date').textContent =
+    d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  renderLog();
+  updateTotals();
+});
+
+// ── Camera / Barcode ──────────────────────────────────────────────────
+async function toggleCamera() {
+  if (scanning) {
+    stopCamera();
+    return;
+  }
+  scanning = true;
+  document.getElementById('camera-container').classList.add('active');
+  document.getElementById('scan-btn').classList.add('scanning');
+  document.getElementById('scan-icon').textContent = '⏹';
+  document.getElementById('scan-text').textContent = 'Stop Scanning';
+
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    // Prefer back camera on mobile
+    const deviceId = devices.length > 1
+      ? (devices.find(d => d.label.toLowerCase().includes('back') ||
+                           d.label.toLowerCase().includes('rear') ||
+                           d.label.toLowerCase().includes('environment'))?.deviceId || devices[devices.length-1].deviceId)
+      : (devices[0]?.deviceId);
+
+    await codeReader.decodeFromVideoDevice(deviceId, 'preview', async (result, err) => {
+      if (result) {
+        const barcode = result.getText();
+        stopCamera();
+        await lookupBarcode(barcode);
+      }
+    });
+  } catch (e) {
+    stopCamera();
+    showError('Camera access denied. Use the search button instead.');
+  }
+}
+
+function stopCamera() {
+  scanning = false;
+  if (codeReader) {
+    codeReader.reset();
+    codeReader = null;
+  }
+  document.getElementById('camera-container').classList.remove('active');
+  document.getElementById('scan-btn').classList.remove('scanning');
+  document.getElementById('scan-icon').textContent = '📷';
+  document.getElementById('scan-text').textContent = 'Scan Barcode';
+}
+
+// ── API Lookups ───────────────────────────────────────────────────────
+async function lookupBarcode(barcode) {
+  showLoading(`Looking up barcode ${barcode}…`);
+  hideResult(); hideError();
+
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,brands,nutriments,serving_size`);
+    const data = await res.json();
+    if (data.status === 1 && data.product) {
+      displayProduct(data.product);
+    } else {
+      // Try USDA as fallback
+      showError(`Barcode not in database. Try searching by name.`);
+    }
+  } catch(e) {
+    showError('Network error. Check your connection and try again.');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function searchFood() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) return;
+  showLoading(`Searching for "${query}"…`);
+  document.getElementById('search-results').classList.remove('visible');
+  hideResult(); hideError();
+
+  // Check if it's a barcode
+  if (/^\d{8,14}$/.test(query)) {
+    await lookupBarcode(query);
+    return;
+  }
+
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=6&fields=product_name,brands,nutriments,code`
+    );
+    const data = await res.json();
+    const products = (data.products || []).filter(p =>
+      p.product_name &&
+      p.nutriments &&
+      (p.nutriments['energy-kcal_100g'] || p.nutriments['energy-kcal'])
+    );
+
+    if (products.length === 0) {
+      showError('No results found. Try a different search term.');
+    } else if (products.length === 1) {
+      displayProduct(products[0]);
+    } else {
+      showSearchResults(products);
+    }
+  } catch(e) {
+    showError('Network error. Check your connection.');
+  } finally {
+    hideLoading();
+  }
+}
+
+function showSearchResults(products) {
+  const container = document.getElementById('search-results');
+  container.innerHTML = '';
+  products.forEach(p => {
+    const n = p.nutriments;
+    const cal = Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0);
+    const div = document.createElement('div');
+    div.className = 'search-result-item';
+    div.innerHTML = `
+      <div class="sri-name">${p.product_name}</div>
+      <div class="sri-brand">${p.brands || ''}</div>
+      <div class="sri-cals">${cal} kcal / 100g</div>
+    `;
+    div.onclick = () => {
+      displayProduct(p);
+      container.classList.remove('visible');
+    };
+    container.appendChild(div);
+  });
+  container.classList.add('visible');
+}
+
+function displayProduct(product) {
+  const n = product.nutriments || {};
+  currentFood = {
+    name: product.product_name || 'Unknown Product',
+    brand: product.brands || '',
+    cal:     parseFloat(n['energy-kcal_100g'] || n['energy-kcal'] || 0),
+    carbs:   parseFloat(n['carbohydrates_100g'] || 0),
+    protein: parseFloat(n['proteins_100g'] || 0),
+    fat:     parseFloat(n['fat_100g'] || 0),
+    fiber:   parseFloat(n['fiber_100g'] || 0),
+  };
+
+  document.getElementById('r-name').textContent = currentFood.name;
+  document.getElementById('r-brand').textContent = currentFood.brand;
+  document.getElementById('r-cal').textContent   = Math.round(currentFood.cal);
+  document.getElementById('r-carb').textContent  = currentFood.carbs.toFixed(1);
+  document.getElementById('r-prot').textContent  = currentFood.protein.toFixed(1);
+  document.getElementById('r-fat').textContent   = currentFood.fat.toFixed(1);
+  document.getElementById('r-serving').textContent = 'per 100g';
+
+  document.getElementById('result-card').classList.add('visible');
+  document.getElementById('weight-input').value = 100;
+  updateCalcPreview();
+  document.getElementById('result-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateCalcPreview() {
+  if (!currentFood) return;
+  const g = parseFloat(document.getElementById('weight-input').value) || 0;
+  const cal = (currentFood.cal * g / 100);
+  document.getElementById('calc-cals').textContent = Math.round(cal);
+}
+
+// ── Log Management ────────────────────────────────────────────────────
+function addToLog() {
+  if (!currentFood) return;
+  const g = parseFloat(document.getElementById('weight-input').value) || 100;
+  const entry = {
+    id: Date.now(),
+    date: today(),
+    meal: 'Meal ' + selectedMeal,
+    name: currentFood.name,
+    brand: currentFood.brand,
+    grams: g,
+    cal:     +(currentFood.cal     * g / 100).toFixed(1),
+    carbs:   +(currentFood.carbs   * g / 100).toFixed(1),
+    protein: +(currentFood.protein * g / 100).toFixed(1),
+    fat:     +(currentFood.fat     * g / 100).toFixed(1),
+    fiber:   +(currentFood.fiber   * g / 100).toFixed(1),
+  };
+  logEntries.push(entry);
+  saveLog();
+  renderLog();
+  updateTotals();
+  showToast(`✓ Added ${entry.name}`);
+  document.getElementById('result-card').classList.remove('visible');
+  currentFood = null;
+}
+
+function deleteEntry(id) {
+  logEntries = logEntries.filter(e => e.id !== id);
+  saveLog();
+  renderLog();
+  updateTotals();
+}
+
+function saveLog() {
+  // Save today's + keep recent
+  const all = JSON.parse(localStorage.getItem('nutriscan-log') || '[]')
+    .filter(e => e.date !== today());
+  localStorage.setItem('nutriscan-log', JSON.stringify([...all, ...logEntries]));
+}
+
+function renderLog() {
+  const list = document.getElementById('log-list');
+  const empty = document.getElementById('empty-msg');
+  list.innerHTML = '';
+  if (logEntries.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  logEntries.forEach(e => {
+    const dotClass = e.meal === 'Meal 1' ? 'dot-m1' : 'dot-m2';
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    div.innerHTML = `
+      <div class="log-meal-dot ${dotClass}"></div>
+      <div class="log-info">
+        <div class="log-name">${e.name}</div>
+        <div class="log-meta">${e.meal} · ${e.grams}g · ${e.carbs}g carbs · ${e.protein}g prot</div>
+      </div>
+      <div class="log-cals">${Math.round(e.cal)}</div>
+      <button class="log-del" onclick="deleteEntry(${e.id})">×</button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function updateTotals() {
+  const totals = logEntries.reduce((acc, e) => {
+    acc.cal     += e.cal;
+    acc.carbs   += e.carbs;
+    acc.protein += e.protein;
+    return acc;
+  }, { cal: 0, carbs: 0, protein: 0 });
+
+  document.getElementById('total-cals').textContent    = Math.round(totals.cal);
+  document.getElementById('total-carbs').textContent   = totals.carbs.toFixed(1) + 'g';
+  document.getElementById('total-protein').textContent = totals.protein.toFixed(1) + 'g';
+
+  const pct = (val, goal) => Math.min(100, Math.round(val / goal * 100));
+  document.getElementById('pb-cals').style.width    = pct(totals.cal, GOALS.cal) + '%';
+  document.getElementById('pb-carbs').style.width   = pct(totals.carbs, GOALS.carb) + '%';
+  document.getElementById('pb-protein').style.width = pct(totals.protein, GOALS.protein) + '%';
+
+  // Turn carb bar red if over goal
+  const carbBar = document.getElementById('pb-carbs');
+  carbBar.style.background = totals.carbs > GOALS.carb ? 'var(--red)' : 'var(--orange)';
+}
+
+// ── Export ────────────────────────────────────────────────────────────
+function copyToClipboard() {
+  if (logEntries.length === 0) { showToast('Nothing logged yet!'); return; }
+  const dateStr = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  const rows = logEntries.map(e =>
+    [dateStr, e.meal, e.name, e.grams, Math.round(e.cal), e.carbs, e.protein, e.fat, ''].join('\t')
+  );
+  const text = rows.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('📋 Copied! Paste into Excel tracker');
+  }).catch(() => {
+    // Fallback for older iOS
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('📋 Copied! Paste into Excel tracker');
+  });
+}
+
+// ── UI Helpers ────────────────────────────────────────────────────────
+function selectMeal(m) {
+  selectedMeal = m;
+  ['1','2','snack'].forEach(x => document.getElementById(`mb-${x}`).classList.remove('active'));
+  const key = m === 'Snack' ? 'snack' : m;
+  document.getElementById(`mb-${key}`).classList.add('active');
+}
+
+function toggleManual() {
+  const el = document.getElementById('manual-search');
+  el.classList.toggle('visible');
+  if (el.classList.contains('visible')) {
+    document.getElementById('search-input').focus();
+  }
+}
+
+function showLoading(msg) {
+  document.getElementById('status-text').textContent = msg || 'Loading…';
+  document.getElementById('status-loading').classList.add('visible');
+  document.getElementById('status-error').classList.remove('visible');
+}
+function hideLoading() { document.getElementById('status-loading').classList.remove('visible'); }
+function showError(msg) {
+  document.getElementById('error-text').textContent = msg;
+  document.getElementById('status-error').classList.add('visible');
+}
+function hideError() { document.getElementById('status-error').classList.remove('visible'); }
+function hideResult() { document.getElementById('result-card').classList.remove('visible'); }
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
